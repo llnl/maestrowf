@@ -28,9 +28,10 @@
 ###############################################################################
 
 """Collection of custom adapters for interfacing with various systems."""
+import importlib
+import inspect
 import logging
 import pkgutil
-import inspect
 from maestrowf.abstracts.interfaces import ScriptAdapter
 
 
@@ -46,16 +47,14 @@ def iter_adapters():
     maestrowf.interfaces.script.
     :return: an iterable of the classes existing in the namespace
     """
-    # get loader for the script adapter package
-    loader = pkgutil.get_loader('maestrowf.interfaces.script')
-    # get all of the modules in the package
-    mods = [(name, ispkg) for finder, name, ispkg in pkgutil.iter_modules(
-            loader.load_module('maestrowf.interfaces.script').__path__,
-            loader.load_module('maestrowf.interfaces.script').__name__ + ".")]
+    # import the script adapter package to get its search path
+    package = importlib.import_module('maestrowf.interfaces.script')
     cs = []
-    for name, _ in mods:
-        # get loader for every module
-        m = pkgutil.get_loader(name).load_module(name)
+    # get all of the modules in the package
+    for _, name, _ in pkgutil.iter_modules(
+            package.__path__, package.__name__ + "."):
+        # import every module (a no-op for one that is already loaded)
+        m = importlib.import_module(name)
         # get all classes that implement ScriptAdapter and are not abstract
         for n, cls in m.__dict__.items():
             if isinstance(cls, type) and issubclass(cls, ScriptAdapter) and \
