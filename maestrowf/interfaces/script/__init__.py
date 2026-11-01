@@ -29,6 +29,7 @@
 
 """Module for interfaces that support various schedulers."""
 __path__ = __import__('pkgutil').extend_path(__path__, __name__)
+import importlib
 import inspect
 import logging
 import pkgutil
@@ -157,20 +158,16 @@ class FluxFactory(object):
         maestrowf.interfaces.script._flux.
         :return: an iterable of the classes existing in the namespace
         """
-        # get loader for the script adapter package
-        loader = pkgutil.get_loader('maestrowf.interfaces.script._flux')
-        # get all of the modules in the package
-        mods = [(name, ispkg) for finder, name, ispkg in pkgutil.iter_modules(
-            loader.load_module('maestrowf.interfaces.script._flux').__path__,
-            loader.load_module(
-                'maestrowf.interfaces.script._flux').__name__ + "."
-            )
-        ]
+        # import the flux interface package to get its search path
+        package = importlib.import_module(
+            'maestrowf.interfaces.script._flux')
         cs = []
-        for name, _ in mods:
-            # get loader for every module
-            m = pkgutil.get_loader(name).load_module(name)
-            # get all classes that implement ScriptAdapter and are not abstract
+        # get all of the modules in the package
+        for _, name, _ in pkgutil.iter_modules(
+                package.__path__, package.__name__ + "."):
+            # import every module (a no-op for one that is already loaded)
+            m = importlib.import_module(name)
+            # get all classes that implement FluxInterface and are not abstract
             for n, cls in m.__dict__.items():
                 if isinstance(cls, type) and \
                  issubclass(cls, FluxInterface) and \

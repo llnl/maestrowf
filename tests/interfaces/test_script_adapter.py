@@ -34,9 +34,14 @@ This was created to verify existing functionality of the ScriptAdapterFactory
 as it was converted to dynamically load all ScriptAdapters using a namespace
 plugin methodology.
 """
+import inspect
+import warnings
+
 import pytest
 
-from maestrowf.interfaces import ScriptAdapterFactory
+from maestrowf.abstracts.interfaces.flux import FluxInterface
+from maestrowf.interfaces import ScriptAdapterFactory, iter_adapters
+from maestrowf.interfaces.script import FluxFactory
 
 
 def test_factory():
@@ -63,3 +68,59 @@ def test_adapter_none_found():
     """
     with pytest.raises(Exception):
         ScriptAdapterFactory.get_adapter('empty-adapter')
+
+
+def test_iter_adapters_finds_builtin_adapters():
+    """
+    Test to verify that discovery finds every adapter shipped in
+    maestrowf.interfaces.script, keyed the way specifications name them.
+    """
+    keys = set(adapter.key for adapter in iter_adapters())
+    assert {'local', 'slurm', 'lsf', 'flux'} <= keys
+
+
+def test_iter_adapters_returns_the_registered_classes():
+    """
+    Test to verify that discovery hands back the very classes the factory
+    registered at import, rather than re-executing the adapter modules.
+    (Discovery through Loader.load_module() re-ran each module on every
+    call, so a second call produced a fresh set of classes.)
+    """
+    for adapter in iter_adapters():
+        assert ScriptAdapterFactory.get_adapter(adapter.key) is adapter
+
+
+def test_iter_adapters_avoids_deprecated_import_machinery():
+    """
+    Test to verify that discovery raises no DeprecationWarning: it must not
+    rely on pkgutil.get_loader (removed in Python 3.14) or on
+    Loader.load_module (slated for removal in Python 3.15).
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        assert iter_adapters()
+
+
+def test_flux_factory_finds_builtin_interfaces():
+    """
+    Test to verify that FluxFactory discovers the concrete versioned
+    interfaces in maestrowf.interfaces.script._flux, the one it calls
+    latest among them, and registers each under its own key.
+    """
+    discovered = FluxFactory._iter_flux()
+    assert discovered
+    assert FluxFactory.latest in FluxFactory.get_valid_interfaces()
+    for interface in discovered:
+        assert issubclass(interface, FluxInterface)
+        assert not inspect.isabstract(interface)
+        assert FluxFactory.get_interface(interface.key) is interface
+
+
+def test_flux_factory_avoids_deprecated_import_machinery():
+    """
+    Test to verify that the Flux interface discovery raises no
+    DeprecationWarning either (same import machinery as iter_adapters).
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        assert FluxFactory._iter_flux()
